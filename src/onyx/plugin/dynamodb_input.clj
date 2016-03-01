@@ -7,9 +7,6 @@
             [taoensso.timbre :refer [debug info] :as timbre]
             [hildebrand.channeled :refer [scan!]]))
 
-;; Often you will need some data in your event map for use by the plugin 
-;; or other lifecycle functions. Try to place these in your builder function (pipeline)
-;; first if possible.
 (defn inject-into-eventmap
   [event lifecycle]
   (let [pipeline (:onyx.core/pipeline event)]
@@ -73,10 +70,6 @@
     [_ _]
     @drained?))
 
-;; Builder function for your plugin. Instantiates a record.
-;; It is highly recommended you inject and pre-calculate frequently used data 
-;; from your task-map here, in order to improve the performance of your plugin
-;; Extending the function below is likely good for most use cases.
 (defn input [event]
   (let [task-map (:onyx.core/task-map event)
         max-pending (arg-or-default :onyx/max-pending task-map)

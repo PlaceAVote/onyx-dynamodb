@@ -1,11 +1,11 @@
-(ns onyx.plugin.dynamodb-input-test
+(ns onyx.plugin.dynamodb-scan-test
   (:require [clojure.core.async :refer [chan >!! <!! close! sliding-buffer]]
             [clojure.test :refer [deftest is testing]]
             [taoensso.timbre :refer [info]]
             [onyx.plugin.core-async :refer [take-segments!]]
             [onyx.plugin.dynamodb-input]
             [onyx.api]
-            [hildebrand.core :refer [ensure-table!! ensure-table! batch-write-item!! batch-write-item!]]))
+            [hildebrand.core :refer [ensure-table!! batch-write-item!!]]))
 
 (def id (java.util.UUID/randomUUID))
 
