@@ -20,15 +20,20 @@ In your peer boot-up namespace:
 
 ##### sample-entry
 
-Catalog entry:
+Scan Catalog entry:
 
 ```clojure
 {:onyx/name :entry-name
- :onyx/plugin :onyx.plugin.dynamodb/input
+ :onyx/plugin :onyx.plugin.dynamodb-input/input
+ :dynamodb/operation :scan
  :onyx/type :input
  :onyx/medium :dynamodb
+ :dynamodb/config client-opts
+ :dynamodb/table :table-name
  :onyx/batch-size batch-size
- :onyx/doc "Reads segments from dynamodb"}
+ :onyx/batch-timeout batch-timeout
+ :onyx/max-peers 1
+ :onyx/doc "Docs"}
 ```
 
 Lifecycle entry:
