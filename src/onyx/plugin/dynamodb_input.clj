@@ -5,13 +5,34 @@
             [onyx.types :as t]
             [clojure.core.async :refer [timeout alts!! chan put!]]
             [taoensso.timbre :refer [debug info] :as timbre]
-            [hildebrand.channeled :refer [scan!]]))
+            [hildebrand.channeled :refer [scan!]]
+            [hildebrand.streams :as streams]
+            [hildebrand.streams.channeled :as channeled]))
+
+(defmulti <results-channel (fn [operation _ _ _] operation))
+
+(defmethod <results-channel :scan [_ conn table chan]
+  (scan! conn table {} {:chan chan}))
+
+(defmethod <results-channel :stream [_ conn table chan]
+  (let [stream-arn (streams/latest-stream-arn!! conn table)
+        shard-id (-> (streams/describe-stream!! conn stream-arn) :shards last :shard-id)]
+    (channeled/get-records! conn stream-arn shard-id :trim-horizon {} {:chan chan})))
 
 (defn inject-into-eventmap
   [event lifecycle]
-  (let [pipeline (:onyx.core/pipeline event)]
+  (when-not (:dynamodb/in-chan event)
+    (throw (ex-info ":dynamodb/in-chan not found - add it using a :before-task-start lifecycle"
+             {:event-map-keys (keys event)})))
+
+  (let [pipeline (:onyx.core/pipeline event)
+        task-map (:onyx.core/task-map event)]
+    (<results-channel
+      (:dynamodb/operation task-map) (:dynamodb/config task-map)
+      (:dynamodb/table task-map) (:dynamodb/in-chan event))
     {:dynamodb/pending-messages (:pending-messages pipeline)
-     :dynamodb/drained?         (:drained? pipeline)}))
+     :dynamodb/drained?         (:drained? pipeline)
+     :dynamodb/results-chan (:dynamodb/in-chan event)}))
 
 (def reader-calls 
   {:lifecycle/before-task-start inject-into-eventmap})
@@ -20,21 +41,21 @@
   (empty? (remove #(= :done (:message %))
             messages)))
 
-(defrecord DynamoConsumer [max-pending batch-size batch-timeout pending-messages drained? results-channel]
+(defrecord DynamoConsumer [max-pending batch-size batch-timeout pending-messages drained?]
   p-ext/Pipeline
   (write-batch 
     [this event]
     (function/write-batch event))
 
-  (read-batch [_ event]
+  (read-batch [_ {:keys [dynamodb/results-chan] :as event}]
     (let [pending (count @pending-messages)
           max-segments (min (- max-pending pending) batch-size)
           timeout-chan (timeout batch-timeout)
           batch (->>
                   (range max-segments)
                   (map (fn [_]
-                         (let [[v p] (alts!! [results-channel timeout-chan] :priority true)]
-                           (if (and (= p results-channel) (nil? v))
+                         (let [[v p] (alts!! [results-chan timeout-chan] :priority true)]
+                           (if (or (= v :done) (and (= p results-chan) (nil? v)))
                              :done
                              v))))
                   (remove (comp nil?))
@@ -76,6 +97,5 @@
         batch-size (:onyx/batch-size task-map)
         batch-timeout (arg-or-default :onyx/batch-timeout task-map)
         pending-messages (atom {})
-        drained? (atom false)
-        results-channel (scan! (:dynamodb/config task-map) (:dynamodb/table task-map) {} {:chan (chan batch-size)})]
-    (->DynamoConsumer max-pending batch-size batch-timeout pending-messages drained? results-channel)))
+        drained? (atom false)]
+    (->DynamoConsumer max-pending batch-size batch-timeout pending-messages drained?)))

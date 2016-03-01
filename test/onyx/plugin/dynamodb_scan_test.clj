@@ -80,16 +80,25 @@
 
 (def workflow [[:scan :out]])
 
+(def results-chan (chan n-messages))
 (def out-chan (chan (sliding-buffer (inc n-messages))))
 
 (defn inject-out-ch [event lifecycle]
   {:core.async/chan out-chan})
+
+(defn inject-in-ch [event lifecycle]
+  {:dynamodb/in-chan results-chan})
+
+(def in-calls
+  {:lifecycle/before-task-start inject-in-ch})
 
 (def out-calls
   {:lifecycle/before-task-start inject-out-ch})
 
 (def lifecycles
   [{:lifecycle/task :scan
+    :lifecycle/calls ::in-calls}
+   {:lifecycle/task :scan
     :lifecycle/calls :onyx.plugin.dynamodb-input/reader-calls}
    {:lifecycle/task :out
     :lifecycle/calls ::out-calls}
