@@ -20,7 +20,7 @@
   (empty? (remove #(= :done (:message %))
             messages)))
 
-(defrecord ExampleInput [max-pending batch-size batch-timeout pending-messages drained? results-channel]
+(defrecord DynamoConsumer [max-pending batch-size batch-timeout pending-messages drained? results-channel]
   p-ext/Pipeline
   (write-batch 
     [this event]
@@ -78,4 +78,4 @@
         pending-messages (atom {})
         drained? (atom false)
         results-channel (scan! (:dynamodb/config task-map) (:dynamodb/table task-map) {} {:chan (chan batch-size)})]
-    (->ExampleInput max-pending batch-size batch-timeout pending-messages drained? results-channel)))
+    (->DynamoConsumer max-pending batch-size batch-timeout pending-messages drained? results-channel)))
